@@ -1,5 +1,5 @@
 import re
-from typing import NamedTuple
+from typing import Callable, NamedTuple
 
 class Variable(NamedTuple):
     val: str
@@ -199,11 +199,27 @@ def prettify(code: str) -> str:
     except ImportError:
         return code
 
-tokens = lex("(xy)' + yz xor ab'")
-# print(tokens)
-p = Parser(tokens)
-r = p.parse_expr()
-comp = prettify(compile_bexpr(r))
+expr = "(xy)' + yz xor xy'"
+def expr_to_python(expr: str) -> tuple[list[str], Callable]:
+    tokens = lex(expr)
+    # print(tokens)
+    p = Parser(tokens)
+    r = p.parse_expr()
+    comp = prettify(compile_bexpr(r))
+    variables = sorted(set(v.val for v in tokens if isinstance(v, Variable)))
+    variables.append("**_")
+    pycode = f"lambda {', '.join(variables)}: {comp}"
+    print(variables)
+    print(pycode)
+    return variables, eval(pycode)
 
-# print(r)
-print(comp)
+e1 = "x'y' + x'z' + xyz"
+e2 = "x xnor yz"
+vnames, fn1 = expr_to_python(e1)
+_, fn2 = expr_to_python(e2)
+
+bn = [False, True]
+for x in bn:
+    for y in bn:
+        for z in bn:
+            assert fn1(x=x, y=y, z=z) == fn2(x=x, y=y, z=z)
