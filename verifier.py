@@ -27,13 +27,13 @@ class Node(tuple):
 
 class Expr(Node):
     """
-    Either (Term, Binop, Expr) or (Term).
+    Either (Not, Expr), (Expr, Binop, Expr), (Term, Binop, Expr) or (Term).
     """
     pass
 
 class Term(Node):
     """
-    Tuple of MaybeVar to be ANDed together.
+    Tuple of (MaybeVar, Term) or (MaybeVar) to be ANDed together
     """
 
 class MaybeVar(Node):
@@ -158,7 +158,52 @@ class Parser:
     def next(self):
         return self.tokens.pop()
 
-tokens = lex("(xy) + yz xor ab'")
+def compile_bexpr(expr: Node) -> str:
+    """
+    Compiles an expression to corresponding Python code.
+    """
+    match expr:
+        case Expr((_, x, y, z)):
+            xc = compile_bexpr(x)
+            if isinstance(x, Term):
+                xc = f"({xc})"
+            zc = compile_bexpr(z)
+            if y.op == "or":
+                return f"({xc} or {zc})"
+            if y.op == "xor":
+                return f"({xc} ^ {zc})"
+            if y.op == "xnor":
+                return f"(not ({xc} ^ {zc}))"
+            raise ValueError(f"Unsupported {y.op}")
+        case Expr((_, Not(), y)):
+            return f"(not {compile_bexpr(y)})"
+        case Expr((_, term)):
+            return f"({compile_bexpr(term)})"
+        case Term((_, mv)):
+            return compile_bexpr(mv)
+        case Term((_, mv, term)):
+            return f"{compile_bexpr(mv)} and {compile_bexpr(term)}"
+        case MaybeVar((_, var, Not())):
+            return f"(not {var.val})"
+        case MaybeVar((_, var)):
+            return var.val
+        case _:
+            return ""
+
+def prettify(code: str) -> str:
+    try:
+        import black
+        return black.format_str(
+            code, mode=black.Mode()
+        ).strip()
+    except ImportError:
+        return code
+
+tokens = lex("(xy)' + yz xor ab'")
 # print(tokens)
 p = Parser(tokens)
-print(p.parse_expr())
+r = p.parse_expr()
+comp = prettify(compile_bexpr(r))
+
+# print(r)
+print(comp)
