@@ -33,7 +33,7 @@ class Expr(Node):
 
 class Term(Node):
     """
-    Tuple of (MaybeVar, Term) or (MaybeVar) to be ANDed together
+    Tuple of (MaybeVar | Expr, Term) or (MaybeVar | Expr) to be ANDed together
     """
 
 class MaybeVar(Node):
@@ -43,12 +43,10 @@ class MaybeVar(Node):
     pass
 
 """
-Expr -> ( Expr ) '
-Expr -> ( Expr )
-Expr -> ( Expr ) ' Binop Expr
-Expr -> ( Expr ) Binop Expr
 Expr -> Term Binop Expr
 Expr -> Term
+Term -> ( Expr ) ' Term
+Term -> ( Expr ) Term
 Term -> MaybeVar Term
 Term -> MaybeVar
 MaybeVar -> Var
@@ -101,16 +99,7 @@ class Parser:
 
     def parse_expr(self):
         match self.peek():
-            case LeftParen():
-                self.eat(LeftParen)
-                expr = self.parse_expr()
-                self.eat(RightParen)
-                if isinstance(self.peek(), Not):
-                    expr = Expr.new(self.eat(Not), expr)
-                if isinstance(self.peek(), Binop):
-                    return Expr.new(expr, self.eat(Binop), self.parse_expr())
-                return expr
-            case Variable(val_):
+            case Variable(_) | LeftParen():
                 term = self.parse_term()
                 if isinstance(self.peek(), Binop):
                     return Expr.new(term, self.eat(Binop), self.parse_expr())
@@ -120,11 +109,21 @@ class Parser:
 
     def parse_term(self):
         match self.peek():
+            case LeftParen():
+                self.eat(LeftParen)
+                expr = self.parse_expr()
+                self.eat(RightParen)
+                if isinstance(self.peek(), Not):
+                    expr = Expr.new(self.eat(Not), expr)
+                if isinstance(self.peek(), LeftParen | Variable):
+                    return Term.new(expr, self.parse_term())
+                return Term.new(expr)
+
             case Variable(val_):
                 mvar = self.parse_maybe_var()
-                if not isinstance(self.peek(), Variable):
-                    return Term.new(mvar)
-                return Term.new(mvar, self.parse_term())
+                if isinstance(self.peek(), LeftParen | Variable):
+                    return Term.new(mvar, self.parse_term())
+                return Term.new(mvar)
             case n:
                 raise SyntaxError(f"Expected Variable, got {n}")
 
@@ -200,7 +199,7 @@ def prettify(code: str) -> str:
         return code
 
 expr = "(xy)' + yz xor xy'"
-def expr_to_python(expr: str) -> tuple[list[str], Callable]:
+def full_compile(expr: str) -> tuple[list[str], Callable]:
     tokens = lex(expr)
     # print(tokens)
     p = Parser(tokens)
@@ -209,17 +208,61 @@ def expr_to_python(expr: str) -> tuple[list[str], Callable]:
     variables = sorted(set(v.val for v in tokens if isinstance(v, Variable)))
     variables.append("**_")
     pycode = f"lambda {', '.join(variables)}: {comp}"
-    print(variables)
+    # print(variables)
     print(pycode)
     return variables, eval(pycode)
 
-e1 = "x'y' + x'z' + xyz"
-e2 = "x xnor yz"
-vnames, fn1 = expr_to_python(e1)
-_, fn2 = expr_to_python(e2)
+def expr_to_python(expr: str) -> Callable:
+    return full_compile(expr)[1]
 
+# e1 = "x'y' + x'z' + xyz"
+# e2 = "x xnor yz"
+# vnames, fn1 = expr_to_python(e1)
+# _, fn2 = expr_to_python(e2)
+#
+# bn = [False, True]
+# for x in bn:
+#     for y in bn:
+#         for z in bn:
+#             assert fn1(x=x, y=y, z=z) == fn2(x=x, y=y, z=z)
+
+fn = expr_to_python("(w)'(x + y) + wx'y'")
+# fn = expr_to_python("w xor (x + y)")
+# fn = lambda w, x, y, z: ((not w) and (x or y)) or (w and (not x) and (not y))
 bn = [False, True]
-for x in bn:
-    for y in bn:
-        for z in bn:
-            assert fn1(x=x, y=y, z=z) == fn2(x=x, y=y, z=z)
+for w in bn:
+    for x in bn:
+        for y in bn:
+            for z in bn:
+                r = fn(w=w, x=x, y=y, z=z)
+                if r:
+                    print([*map(int, [w, x, y, z])])
+exit()
+
+# note: it won't work with paren at start of term
+ea = "w(x + yz)"
+eb = "x xnor yz"
+ec = "y xor z"
+ed = "z'"
+fa, fb, fc, fd = map(expr_to_python, [ea, eb, ec, ed])
+vnames = [*"wxyz"]
+
+def dectobin(d: int, vnames: list[str]) -> dict[str, bool]:
+    if d < 0 or d >= (1 << len(vnames)):
+        raise ValueError(f"Integer {d} outside of {len(vnames)}-bit uint range")
+    b = bin(d)[2:].zfill(len(vnames))
+    b_bool = [n == "1" for n in b]
+    return dict(zip(vnames, b_bool))
+
+def bintodec(bits: list[bool]) -> int:
+    return int("".join("1" if b else "0" for b in bits), 2)
+
+for n in range(10):
+    inp = dectobin(n + 3, vnames)
+    out = [
+        fa(**inp),
+        fb(**inp),
+        fc(**inp),
+        fd(**inp)
+    ]
+    print(bintodec(out))
