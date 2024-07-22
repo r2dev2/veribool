@@ -2,24 +2,32 @@ import re
 from typing import Callable, NamedTuple
 
 dbg = False
+
+
 def set_dbg(new_dbg):
     global dbg
     dbg = new_dbg
 
+
 class Variable(NamedTuple):
     val: str
+
 
 class LeftParen(NamedTuple):
     pass
 
+
 class RightParen(NamedTuple):
     pass
+
 
 class Not(NamedTuple):
     pass
 
+
 class Binop(NamedTuple):
     op: str
+
 
 class Node(tuple):
     @classmethod
@@ -30,22 +38,28 @@ class Node(tuple):
         cls, *rest = self
         return f"{cls.__name__}{repr(tuple(rest))}"
 
+
 class Expr(Node):
     """
     Either (Not, Expr), (Expr, Binop, Expr), (Term, Binop, Expr) or (Term).
     """
+
     pass
+
 
 class Term(Node):
     """
     Tuple of (MaybeVar | Expr, Term) or (MaybeVar | Expr) to be ANDed together
     """
 
+
 class MaybeVar(Node):
     """
     Either (Variable, Not) or (Variable)
     """
+
     pass
+
 
 """
 Expr -> Term Binop Expr
@@ -62,6 +76,7 @@ Binop -> xor
 Binop -> xnor
 Var -> [a-zA-Z]+
 """
+
 
 def lex(text: str):
     text = re.sub(r"\s+", "", text)
@@ -102,6 +117,7 @@ def lex(text: str):
             continue
         raise SyntaxError(f"Unexpected token {repr(text[i])}")
     return tokens
+
 
 class Parser:
     def __init__(self, tokens):
@@ -167,6 +183,7 @@ class Parser:
     def next(self):
         return self.tokens.pop()
 
+
 def compile_bexpr(expr: Node) -> str:
     """
     Compiles an expression to corresponding Python code.
@@ -199,14 +216,15 @@ def compile_bexpr(expr: Node) -> str:
         case _:
             return ""
 
+
 def prettify(code: str) -> str:
     try:
         import black
-        return black.format_str(
-            code, mode=black.Mode()
-        ).strip()
+
+        return black.format_str(code, mode=black.Mode()).strip()
     except ImportError:
         return code
+
 
 def full_compile(expr: str) -> tuple[list[str], Callable]:
     tokens = lex(expr)
@@ -219,6 +237,6 @@ def full_compile(expr: str) -> tuple[list[str], Callable]:
         print(pycode)
     return variables, eval(pycode)
 
+
 def expr_to_python(expr: str) -> Callable:
     return full_compile(expr)[1]
-

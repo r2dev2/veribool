@@ -3,6 +3,7 @@ from typing import Callable, NamedTuple
 
 from .compiler import full_compile
 
+
 class Divergence(NamedTuple):
     inputs: list[bool]
     value_1: bool
@@ -11,12 +12,14 @@ class Divergence(NamedTuple):
     def __str__(self):
         return f"{[*map(int, self.inputs)]} - {self.value_1} vs {self.value_2}"
 
+
 class TableEntry(NamedTuple):
     inputs: list[bool]
     value: bool
 
     def __str__(self):
         return f"{[*map(int, self.inputs)]} - {self.value}"
+
 
 def generate_truth_table(expr: str) -> list[TableEntry]:
     vnames, fn = full_compile(expr)
@@ -39,13 +42,16 @@ def find_divergence(expr1: str, expr2: str) -> Divergence | None:
     return None
 
 
-def __generate_truth_table(vnames: list[str], fn: Callable[..., bool]) -> list[TableEntry]:
+def __generate_truth_table(
+    vnames: list[str], fn: Callable[..., bool]
+) -> list[TableEntry]:
     bn = [[False, True] for _ in vnames]
     table = []
     for inpl in it.product(*bn):
         inp_dict = dict(zip(vnames, inpl))
         table.append(TableEntry(list(inpl), bool(fn(**inp_dict))))
     return table
+
 
 # ea = "w(x + yz)"
 # eb = "x xnor yz"
@@ -54,6 +60,7 @@ def __generate_truth_table(vnames: list[str], fn: Callable[..., bool]) -> list[T
 # fa, fb, fc, fd = map(expr_to_python, [ea, eb, ec, ed])
 # vnames = [*"wxyz"]
 
+
 def dectobin(d: int, vnames: list[str]) -> dict[str, bool]:
     if d < 0 or d >= (1 << len(vnames)):
         raise ValueError(f"Integer {d} outside of {len(vnames)}-bit uint range")
@@ -61,8 +68,10 @@ def dectobin(d: int, vnames: list[str]) -> dict[str, bool]:
     b_bool = [n == "1" for n in b]
     return dict(zip(vnames, b_bool))
 
+
 def bintodec(bits: list[bool]) -> int:
     return int("".join("1" if b else "0" for b in bits), 2)
+
 
 # for n in range(10):
 #     inp = dectobin(n + 3, vnames)
