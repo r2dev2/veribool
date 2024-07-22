@@ -16,6 +16,7 @@ def diff_exprs(args):
     if divergence is None:
         exit(0)
     print(divergence)
+    exit(2)
 
 def compile_expr(args):
     vc.set_dbg(True)
